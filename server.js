@@ -15,58 +15,53 @@ let buyVolume = 0;
 let sellVolume = 0;
 
 async function connectToKuCoin() {
-    console.log("جارٍ جلب رمز الاتصال من KuCoin...");
-    
-    // 1. طلب رمز الاتصال (Token) من KuCoin
-    const response = await axios.post('https://api.kucoin.com/api/v1/bullet-public');
-    const { token, instanceServers } = response.data.data;
-    const endpoint = `${instanceServers[0].endpoint}?token=${token}`;
+    try {
+        const response = await axios.post('https://api.kucoin.com/api/v1/bullet-public');
+        const { token, instanceServers } = response.data.data;
+        const endpoint = `${instanceServers[0].endpoint}?token=${token}`;
 
-    console.log("✅ تم الحصول على الرمز، جارٍ الاتصال...");
-    const ws = new WebSocket(endpoint);
+        const ws = new WebSocket(endpoint);
 
-    ws.on('open', () => {
-        console.log('✅ تم الاتصال بنجاح بـ KuCoin');
-        // 2. الاشتراك في بيانات السوق (Ticker) لزوج BTC-USDT
-        ws.send(JSON.stringify({
-            "id": 1,
-            "type": "subscribe",
-            "topic": "/market/ticker:BTC-USDT",
-            "response": true
-        }));
-    });
+        ws.on('open', () => {
+            console.log('✅ تم الاتصال بـ KuCoin بنجاح');
+            // التعديل هنا: استخدمنا /market/match للحصول على الصفقات الحقيقية
+            ws.send(JSON.stringify({
+                "id": Date.now(),
+                "type": "subscribe",
+                "topic": "/market/match:BTC-USDT", 
+                "response": true
+            }));
+        });
 
-    ws.on('message', (data) => {
-        const msg = JSON.parse(data);
-        // KuCoin ترسل بيانات التداول في نوع "message"
-        if (msg.type === 'message' && msg.data && msg.data.lastTradedPrice) {
-            // ملاحظة: KuCoin ترسل تحديثات السعر والكمية. 
-            // سنحسب التدفق بناءً على التغيرات (هذا مجرد مثال بسيط)
-            const price = parseFloat(msg.data.lastTradedPrice);
-            const size = parseFloat(msg.data.size);
+        ws.on('message', (data) => {
+            const msg = JSON.parse(data);
+            // التأكد من أن الرسالة هي صفقة (match)
+            if (msg.topic === '/market/match:BTC-USDT' && msg.data) {
+                const size = parseFloat(msg.data.size);
+                const side = msg.data.side; // 'buy' أو 'sell'
 
-            // منطق مبسط: إذا السعر ارتفع = شراء، انخفض = بيع
-            // (يمكنك تطويره لاحقاً حسب بيانات KuCoin المتقدمة)
-            if (size > 0.1) { // فلتر الحيتان
-                buyVolume += size; 
+                // فلتر الحيتان: إذا كانت الصفقة أكبر من 0.1 BTC
+                if (size >= 0.1) {
+                    if (side === 'buy') {
+                        buyVolume += size;
+                    } else if (side === 'sell') {
+                        sellVolume += size;
+                    }
+                }
             }
-        }
-    });
+        });
 
-    ws.on('close', () => {
-        console.log('🔄 انقطع الاتصال، إعادة المحاولة بعد 5 ثوانٍ...');
-        setTimeout(connectToKuCoin, 5000);
-    });
+        ws.on('close', () => setTimeout(connectToKuCoin, 5000));
+        ws.on('error', () => setTimeout(connectToKuCoin, 5000));
 
-    ws.on('error', (err) => {
-        console.error('⚠️ خطأ:', err.message);
+    } catch (error) {
+        console.error("خطأ في الاتصال بـ KuCoin، سأحاول مجدداً بعد 5 ثوانٍ");
         setTimeout(connectToKuCoin, 5000);
-    });
+    }
 }
 
 connectToKuCoin();
 
-// إرسال البيانات للواجهة
 setInterval(() => {
     io.emit('marketData', {
         buy: buyVolume.toFixed(2),
@@ -78,4 +73,4 @@ setInterval(() => {
 }, 1000);
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`السيرفر يعمل على المنفذ: ${PORT}`));
+server.listen(PORT, () => console.log(`السيرفر يعمل على: ${PORT}`));
