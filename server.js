@@ -8,35 +8,58 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// خدمة ملفات الـ frontend
 app.use(express.static(path.join(__dirname, 'public')));
 
 let buyVolume = 0;
 let sellVolume = 0;
 
-// الاتصال المباشر بـ WebSocket الخاص ببينانس
-const ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@trade');
+// دالة الاتصال بـ WebSocket
+function connectToBinance() {
+    console.log("جارٍ محاولة الاتصال بـ Binance...");
+    const ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@trade');
 
-ws.on('message', (data) => {
-    const trade = JSON.parse(data);
-    const quantity = parseFloat(trade.q);
-    const isBuyerMaker = trade.m; // true = بيع، false = شراء
+    ws.on('open', () => {
+        console.log('✅ تم الاتصال بنجاح بـ Binance');
+    });
 
-    // فلتر: فقط الصفقات الكبيرة (مثلاً 1 BTC فما فوق)
-    if (quantity >= 1.0) {
-        if (isBuyerMaker) sellVolume += quantity;
-        else buyVolume += quantity;
-    }
-});
+    ws.on('message', (data) => {
+        try {
+            const trade = JSON.parse(data);
+            const quantity = parseFloat(trade.q);
+            const isBuyerMaker = trade.m; 
 
-// إرسال البيانات للواجهة كل ثانية
+            if (quantity >= 1.0) {
+                if (isBuyerMaker) sellVolume += quantity;
+                else buyVolume += quantity;
+            }
+        } catch (e) {
+            console.error("خطأ في معالجة البيانات:", e);
+        }
+    });
+
+    // التعامل مع الأخطاء وإعادة الاتصال
+    ws.on('error', (err) => {
+        console.error('⚠️ خطأ في WebSocket:', err.message);
+        // لا تنهي التطبيق، انتظر 5 ثواني وأعد الاتصال
+        setTimeout(connectToBinance, 5000);
+    });
+
+    ws.on('close', () => {
+        console.log('🔄 تم إغلاق الاتصال، جارٍ إعادة المحاولة...');
+        setTimeout(connectToBinance, 5000);
+    });
+}
+
+// تشغيل الدالة لأول مرة
+connectToBinance();
+
+// إرسال البيانات للواجهة
 setInterval(() => {
     io.emit('marketData', {
         buy: buyVolume.toFixed(2),
         sell: sellVolume.toFixed(2),
         net: (buyVolume - sellVolume).toFixed(2)
     });
-    // تصفير القيم
     buyVolume = 0;
     sellVolume = 0;
 }, 1000);
