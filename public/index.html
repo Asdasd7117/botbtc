@@ -2,15 +2,34 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>مراقب الحيتان - مباشر</title>
-    <link rel="stylesheet" href="style.css">
+    <title>مراقبة سيولة BTC</title>
+    <style>
+        body { background: #121212; color: #fff; font-family: sans-serif; text-align: center; padding: 20px; }
+        .card { background: #1e1e1e; padding: 20px; margin: 10px; border-radius: 10px; display: inline-block; width: 250px; }
+        h1 { font-size: 2.5em; }
+    </style>
 </head>
 <body>
     <h1>مراقبة سيولة BTC لحظياً</h1>
-    <div class="container">
-        <div class="card"><h3>شراء الحيتان</h3><h2 id="buy" class="green">0</h2></div>
-        <div class="card"><h3>بيع الحيتان</h3><h2 id="sell" class="red">0</h2></div>
-        <div class="card"><h3>صافي التدفق</h3><h2 id="net">0</h2></div>
+    
+    <div class="card">
+        <h3>سعر البيتكوين</h3>
+        <h2 id="price">0.00</h2>
+    </div>
+
+    <div style="margin-top: 20px;">
+        <div class="card">
+            <h3>شراء الحيتان</h3>
+            <h2 id="buy" style="color: #00ff00;">0.00</h2>
+        </div>
+        <div class="card">
+            <h3>بيع الحيتان</h3>
+            <h2 id="sell" style="color: #ff4444;">0.00</h2>
+        </div>
+        <div class="card">
+            <h3>صافي التدفق</h3>
+            <h2 id="net">0.00</h2>
+        </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
