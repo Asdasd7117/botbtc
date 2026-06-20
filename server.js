@@ -13,6 +13,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 let buyVolume = 0;
 let sellVolume = 0;
+// متغير لحفظ الساعة التي تم فيها آخر تصفير
+let lastResetHour = new Date().getHours();
 
 async function connectToKuCoin() {
     try {
@@ -23,7 +25,7 @@ async function connectToKuCoin() {
         const ws = new WebSocket(endpoint);
 
         ws.on('open', () => {
-            console.log('✅ تم الاتصال!');
+            console.log('✅ تم الاتصال بـ KuCoin!');
             ws.send(JSON.stringify({
                 "id": Date.now(),
                 "type": "subscribe",
@@ -39,7 +41,7 @@ async function connectToKuCoin() {
                     const size = parseFloat(msg.data.size);
                     const side = msg.data.side;
                     
-                    // فلتر صغير جداً لنضمن ظهور أي حركة
+                    // فلتر صغير جداً لضمان ظهور أي حركة
                     if (size >= 0.000001) { 
                         if (side === 'buy') buyVolume += size;
                         else if (side === 'sell') sellVolume += size;
@@ -55,16 +57,26 @@ async function connectToKuCoin() {
 
 connectToKuCoin();
 
+// حلقة التحديث
 setInterval(() => {
+    // 1. التحقق من الساعة
+    const currentHour = new Date().getHours();
+    
+    // إذا تغيرت الساعة، نقوم بالتصفير
+    if (currentHour !== lastResetHour) {
+        console.log(`بدأت ساعة جديدة (${currentHour}:00)، تصفير العدادات...`);
+        buyVolume = 0;
+        sellVolume = 0;
+        lastResetHour = currentHour;
+    }
+
+    // 2. إرسال البيانات للواجهة
     io.emit('marketData', {
         buy: buyVolume,
         sell: sellVolume,
         net: (buyVolume - sellVolume)
     });
-    // لا تصفر القيم إذا أردت رؤية تراكمي، أو صفرها إذا أردت تدفق كل ثانية
-    buyVolume = 0; 
-    sellVolume = 0;
 }, 1000);
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT);
+server.listen(PORT, () => console.log(`السيرفر يعمل على المنفذ: ${PORT}`));
