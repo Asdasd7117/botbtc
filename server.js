@@ -11,9 +11,10 @@ const io = new Server(server);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+// متغيرات البيانات
 let buyVolume = 0;
 let sellVolume = 0;
-// متغير لحفظ الساعة التي تم فيها آخر تصفير
+let lastPrice = 0;
 let lastResetHour = new Date().getHours();
 
 async function connectToKuCoin() {
@@ -25,7 +26,7 @@ async function connectToKuCoin() {
         const ws = new WebSocket(endpoint);
 
         ws.on('open', () => {
-            console.log('✅ تم الاتصال بـ KuCoin!');
+            console.log('✅ متصل بـ KuCoin');
             ws.send(JSON.stringify({
                 "id": Date.now(),
                 "type": "subscribe",
@@ -38,10 +39,13 @@ async function connectToKuCoin() {
             try {
                 const msg = JSON.parse(data);
                 if (msg.topic === '/market/match:BTC-USDT' && msg.data) {
+                    // تحديث السعر الحالي
+                    lastPrice = parseFloat(msg.data.price);
+                    
+                    // تحديث حجم التداول
                     const size = parseFloat(msg.data.size);
                     const side = msg.data.side;
                     
-                    // فلتر صغير جداً لضمان ظهور أي حركة
                     if (size >= 0.000001) { 
                         if (side === 'buy') buyVolume += size;
                         else if (side === 'sell') sellVolume += size;
@@ -57,21 +61,19 @@ async function connectToKuCoin() {
 
 connectToKuCoin();
 
-// حلقة التحديث
+// حلقة الإرسال للواجهة (كل ثانية)
 setInterval(() => {
-    // 1. التحقق من الساعة
+    // التحقق من بداية ساعة جديدة للتصفير
     const currentHour = new Date().getHours();
-    
-    // إذا تغيرت الساعة، نقوم بالتصفير
     if (currentHour !== lastResetHour) {
-        console.log(`بدأت ساعة جديدة (${currentHour}:00)، تصفير العدادات...`);
         buyVolume = 0;
         sellVolume = 0;
         lastResetHour = currentHour;
     }
 
-    // 2. إرسال البيانات للواجهة
+    // إرسال البيانات
     io.emit('marketData', {
+        price: lastPrice,
         buy: buyVolume,
         sell: sellVolume,
         net: (buyVolume - sellVolume)
