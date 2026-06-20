@@ -1,0 +1,6 @@
+body { font-family: sans-serif; background: #121212; color: white; text-align: center; padding-top: 50px; }
+.container { display: flex; justify-content: center; gap: 20px; }
+.card { padding: 20px; border-radius: 10px; background: #1e1e1e; width: 180px; border: 1px solid #333; }
+.green { color: #00ff00; }
+.red { color: #ff4444; }
+h1 { margin-bottom: 40px; color: #fff; }
