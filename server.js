@@ -22,10 +22,12 @@ async function updatePivots() {
         const p = (h + l + c) / 3;
         pivots = { R3: (2 * p) - (2 * l - h), R2: p + (h - l), R1: (2 * p) - l, P: p, S1: (2 * p) - h, S2: p - (h - l), S3: (2 * p) - (2 * h - l) };
         io.emit('pivots', pivots);
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error("Error fetching pivots:", e.message); }
 }
 
 function getZoneName(price) {
+    // إضافة حماية للتأكد من أن البيفوت تم تحميله قبل الاستخدام
+    if (!pivots.R2) return "انتظار البيانات...";
     if (price > pivots.R2) return "R3-R2";
     if (price > pivots.R1) return "R2-R1";
     if (price > pivots.P) return "R1-P";
@@ -34,24 +36,49 @@ function getZoneName(price) {
     return "S2-S3";
 }
 
-// اتصال بينانس
-const ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@aggTrade');
-ws.on('message', (data) => {
-    const msg = JSON.parse(data);
-    const now = new Date();
-    if (now.getHours() !== lastHour) { zoneStats = {}; lastHour = now.getHours(); }
+// دالة الاتصال المحدثة (Robust Connection)
+function connectWebSocket() {
+    console.log("Attempting to connect to Binance...");
+    const ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@aggTrade');
 
-    const price = parseFloat(msg.p);
-    const qty = parseFloat(msg.q);
-    const zone = getZoneName(price);
+    ws.on('open', () => {
+        console.log("Connected to Binance WebSocket!");
+    });
 
-    if (!zoneStats[zone]) zoneStats[zone] = { buy: 0, sell: 0 };
-    if (msg.m) zoneStats[zone].sell += qty; else zoneStats[zone].buy += qty;
-    
-    io.emit('stats', { zone, stats: zoneStats[zone], price });
-});
+    ws.on('message', (data) => {
+        try {
+            const msg = JSON.parse(data);
+            const now = new Date();
+            if (now.getHours() !== lastHour) { zoneStats = {}; lastHour = now.getHours(); }
 
-setInterval(updatePivots, 600000);
+            const price = parseFloat(msg.p);
+            const qty = parseFloat(msg.q);
+            const zone = getZoneName(price);
+
+            if (!zoneStats[zone]) zoneStats[zone] = { buy: 0, sell: 0 };
+            if (msg.m) zoneStats[zone].sell += qty; else zoneStats[zone].buy += qty;
+            
+            io.emit('stats', { zone, stats: zoneStats[zone], price });
+        } catch (e) {
+            console.error("Message Processing Error:", e);
+        }
+    });
+
+    // معالجة الخطأ لمنع انهيار البرنامج
+    ws.on('error', (err) => {
+        console.error("WebSocket Error:", err.message);
+    });
+
+    // إعادة الاتصال تلقائياً عند الإغلاق
+    ws.on('close', () => {
+        console.log("Connection closed. Reconnecting in 5 seconds...");
+        setTimeout(connectWebSocket, 5000);
+    });
+}
+
+// تشغيل النظام
 updatePivots();
+setInterval(updatePivots, 600000);
+connectWebSocket(); // بدء الاتصال
 
-server.listen(process.env.PORT || 3000, () => console.log('Server running...'));
+server.listen(process.env.PORT || 3000, () => console.log('Server running on port 3000'));
