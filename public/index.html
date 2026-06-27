@@ -2,37 +2,49 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>مراقبة سيولة BTC</title>
+    <title>مراقب BTC Flow - سحابي</title>
     <style>
-        body { background: #121212; color: #fff; font-family: sans-serif; text-align: center; padding: 20px; }
-        .card { background: #1e1e1e; padding: 20px; margin: 10px; border-radius: 10px; display: inline-block; width: 250px; }
-        h1 { font-size: 2.5em; }
+        /* (احتفظ بنفس الستايل القديم الخاص بك هنا) */
+        body { font-family: sans-serif; background: #131722; color: white; padding: 20px; }
+        .grid-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+        .card { background: #1e222d; padding: 10px; border-radius: 8px; text-align: center; border: 1px solid #333; }
+        .active-zone { border: 2px solid #00ff00; box-shadow: 0 0 10px #00ff00; }
+        .val { font-weight: bold; font-size: 1.1em; display: block; color: #fff; }
+        .stats-area { margin-top: 20px; padding: 15px; background: #0b0e14; border-radius: 8px; }
     </style>
 </head>
 <body>
-    <h1>مراقبة سيولة BTC لحظياً</h1>
-    
-    <div class="card">
-        <h3>سعر البيتكوين</h3>
-        <h2 id="price">0.00</h2>
-    </div>
-
-    <div style="margin-top: 20px;">
-        <div class="card">
-            <h3>شراء الحيتان</h3>
-            <h2 id="buy" style="color: #00ff00;">0.00</h2>
-        </div>
-        <div class="card">
-            <h3>بيع الحيتان</h3>
-            <h2 id="sell" style="color: #ff4444;">0.00</h2>
-        </div>
-        <div class="card">
-            <h3>صافي التدفق</h3>
-            <h2 id="net">0.00</h2>
-        </div>
+    <h2 style="text-align:center;">مراقب تدفق الأوامر (سحابي)</h2>
+    <div style="text-align:center; font-size: 24px;">السعر: <span id="price">--</span></div>
+    <div class="grid-container" id="pivot-grid"></div>
+    <div class="stats-area">
+        <h3>المنطقة الحالية: <span id="current-zone-name">--</span></h3>
+        <div id="stats-content">جاري الاتصال بالسيرفر...</div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="script.js"></script>
+    <script>
+        const socket = io();
+        socket.on('pivots', (pivots) => {
+            const container = document.getElementById('pivot-grid');
+            container.innerHTML = Object.entries(pivots).map(([k,v]) => 
+                `<div class="card" id="card-${k}"><span>${k}</span><span class="val">${v.toFixed(2)}</span></div>`).join('');
+        });
+
+        socket.on('stats', (data) => {
+            document.getElementById('price').innerText = data.price.toFixed(2);
+            document.getElementById('current-zone-name').innerText = data.zone;
+            const total = data.stats.buy + data.stats.sell;
+            const buyPct = (data.stats.buy/total*100).toFixed(1);
+            const sellPct = (data.stats.sell/total*100).toFixed(1);
+            document.getElementById('stats-content').innerHTML = `
+                <div>الشراء: ${buyPct}% (${data.stats.buy.toFixed(2)})</div>
+                <div>البيع: ${sellPct}% (${data.stats.sell.toFixed(2)})</div>`;
+            
+            document.querySelectorAll('.card').forEach(el => el.classList.remove('active-zone'));
+            const active = document.getElementById(`card-${data.zone.split('-')[0] === 'P' ? 'P' : data.zone.split('-')[0]}`);
+            if(active) active.classList.add('active-zone');
+        });
+    </script>
 </body>
 </html>
