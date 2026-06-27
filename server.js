@@ -26,7 +26,6 @@ async function updatePivots() {
 }
 
 function getZoneName(price) {
-    // إضافة حماية للتأكد من أن البيفوت تم تحميله قبل الاستخدام
     if (!pivots.R2) return "انتظار البيانات...";
     if (price > pivots.R2) return "R3-R2";
     if (price > pivots.R1) return "R2-R1";
@@ -36,10 +35,19 @@ function getZoneName(price) {
     return "S2-S3";
 }
 
-// دالة الاتصال المحدثة (Robust Connection)
+// دالة الاتصال المحدثة مع ترويسات لتجاوز الحظر
 function connectWebSocket() {
     console.log("Attempting to connect to Binance...");
-    const ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@aggTrade');
+    
+    // إضافة ترويسات لمحاكاة متصفح حقيقي وتجاوز خطأ 451
+    const options = {
+        headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Origin": "https://www.binance.com"
+        }
+    };
+
+    const ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@aggTrade', options);
 
     ws.on('open', () => {
         console.log("Connected to Binance WebSocket!");
@@ -49,7 +57,11 @@ function connectWebSocket() {
         try {
             const msg = JSON.parse(data);
             const now = new Date();
-            if (now.getHours() !== lastHour) { zoneStats = {}; lastHour = now.getHours(); }
+            // تصفير البيانات عند بداية ساعة جديدة
+            if (now.getHours() !== lastHour) { 
+                zoneStats = {}; 
+                lastHour = now.getHours(); 
+            }
 
             const price = parseFloat(msg.p);
             const qty = parseFloat(msg.q);
@@ -64,7 +76,7 @@ function connectWebSocket() {
         }
     });
 
-    // معالجة الخطأ لمنع انهيار البرنامج
+    // معالجة الأخطاء لمنع انهيار البرنامج
     ws.on('error', (err) => {
         console.error("WebSocket Error:", err.message);
     });
@@ -79,6 +91,6 @@ function connectWebSocket() {
 // تشغيل النظام
 updatePivots();
 setInterval(updatePivots, 600000);
-connectWebSocket(); // بدء الاتصال
+connectWebSocket(); 
 
 server.listen(process.env.PORT || 3000, () => console.log('Server running on port 3000'));
