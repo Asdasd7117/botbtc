@@ -1,5 +1,5 @@
 {
-  "name": "crypto-monitor",
+  "name": "btc-flow-bot",
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
